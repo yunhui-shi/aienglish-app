@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+src/aienglish_app_backend.egg-info/PKG-INFO
+src/aienglish_app_backend.egg-info/SOURCES.txt
+src/aienglish_app_backend.egg-info/dependency_links.txt
+src/aienglish_app_backend.egg-info/requires.txt
+src/aienglish_app_backend.egg-info/top_level.txt
