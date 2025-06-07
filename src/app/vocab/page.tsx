@@ -262,7 +262,8 @@ const VocabPage = () => {
     
     try {
       return JSON.parse(definition);
-    } catch (error) {
+    } catch (parseError) { // Renamed 'error' to 'parseError' to avoid conflict
+      console.error('Error parsing definition:', parseError);
       // 如果解析失败，返回原始字符串作为单个释义
       return [{
         part_of_speech: 'unknown',
@@ -272,13 +273,13 @@ const VocabPage = () => {
   };
 
   // 获取简化的释义显示
-  const getSimpleDefinition = (definition: string): string => {
-    const parsed = parseDefinition(definition);
-    if (parsed.length > 0 && parsed[0].meanings && parsed[0].meanings.length > 0) {
-      return parsed[0].meanings[0];
-    }
-    return definition;
-  };
+  // const getSimpleDefinition = (definition: string): string => {
+  //   const parsed = parseDefinition(definition);
+  //   if (parsed.length > 0 && parsed[0].meanings && parsed[0].meanings.length > 0) {
+  //     return parsed[0].meanings[0];
+  //   }
+  //   return definition;
+  // };
 
   const getStatusColor = (status: VocabularyItem['status']) => {
     switch (status) {

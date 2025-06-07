@@ -40,7 +40,6 @@ next-env.d.ts
 
 backend/.env
 backend/Dockerfile
-backend/aienglish.db
 backend/alembic*
 *__pycache__*
 

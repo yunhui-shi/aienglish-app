@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +15,7 @@ interface ClickableWordsProps {
   onWordClick?: (word: string) => void;
 }
 
-const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWord, vocabulary, onWordClick }) => {
+const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWord, onWordClick }) => {
   // 处理单词点击
   const handleWordClick = (e: React.MouseEvent, word: string) => {
     e.preventDefault();
@@ -132,7 +132,7 @@ const PracticePage = () => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0); // 0: 词语选择, 1: 翻译选择, 2: 解析
   const [loading, setLoading] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false); // 主题/难度切换加载状态
-  const [selectedWordExplanation, setSelectedWordExplanation] = useState<any>(null);
+  const [selectedWordExplanation, setSelectedWordExplanation] = useState<{ word: string; phonetic: string | null; definitions: Array<{ part_of_speech: string; meanings: string[] }> } | null>(null);
   const [wordExplanationLoading, setWordExplanationLoading] = useState(false);
   const [showVocabPanel, setShowVocabPanel] = useState(false);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
@@ -307,7 +307,7 @@ const PracticePage = () => {
       // 将释义转换为JSON字符串
       const definitionJson = JSON.stringify(explanation.definitions);
       
-      const response = await fetch('/api/vocab', {
+      const response = await fetch('/api/vocab/', {
         method: 'POST',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -693,7 +693,7 @@ const PracticePage = () => {
                     
                     {/* 词汇定义 */}
                     <div className="space-y-3">
-                      {selectedWordExplanation.definitions?.map((definition: any, index: number) => (
+                      {selectedWordExplanation.definitions?.map((definition: { part_of_speech: string; meanings: string[] }, index: number) => (
                         <div key={index} className="bg-gray-50 p-3 rounded-lg">
                           <div className="font-medium text-indigo-600 mb-2">
                             {definition.part_of_speech}
