@@ -11,13 +11,18 @@ import { Label } from '@/components/ui/label';
 interface VocabularyItem {
   id: string;
   word: string;
-  pronunciation?: string;
+  phonetic?: string;
   definition: string;
   example_sentence?: string;
   translation?: string;
-  status: 'learning' | 'mastered' | 'review';
+  status: 'new' | 'learning' | 'mastered';
   added_at: string;
   grammar_type?: string;
+}
+
+interface WordDefinition {
+  part_of_speech: string;
+  meanings: string[];
 }
 
 const VocabPage = () => {
@@ -25,8 +30,7 @@ const VocabPage = () => {
   const [filteredList, setFilteredList] = useState<VocabularyItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedWord, setSelectedWord] = useState<VocabularyItem | null>(null);
-  const [showModal, setShowModal] = useState(false);
+
   const [loading, setLoading] = useState(true);
 
   // 模拟生词数据
@@ -34,8 +38,11 @@ const VocabPage = () => {
     {
       id: '1',
       word: 'consensus',
-      pronunciation: '/kənˈsensəs/',
-      definition: '共识，一致意见',
+      phonetic: '/kənˈsensəs/',
+      definition: JSON.stringify([{
+        part_of_speech: 'noun',
+        meanings: ['共识，一致意见', '普遍同意的意见或决定']
+      }]),
       example_sentence: 'The committee reached a consensus on the new policy.',
       translation: '委员会就新政策达成了共识。',
       status: 'learning',
@@ -45,19 +52,25 @@ const VocabPage = () => {
     {
       id: '2',
       word: 'proposal',
-      pronunciation: '/prəˈpoʊzl/',
-      definition: '提案，建议',
+      phonetic: '/prəˈpoʊzl/',
+      definition: JSON.stringify([{
+        part_of_speech: 'noun',
+        meanings: ['提案，建议', '求婚']
+      }]),
       example_sentence: 'She submitted a detailed proposal for the project.',
       translation: '她为这个项目提交了一份详细的提案。',
-      status: 'review',
+      status: 'new',
       added_at: '2024-01-14T14:20:00Z',
       grammar_type: 'noun'
     },
     {
       id: '3',
       word: 'achieve',
-      pronunciation: '/əˈtʃiːv/',
-      definition: '实现，达到，完成',
+      phonetic: '/əˈtʃiːv/',
+      definition: JSON.stringify([{
+        part_of_speech: 'verb',
+        meanings: ['实现，达到，完成', '取得成功']
+      }]),
       example_sentence: 'She worked hard to achieve her goals.',
       translation: '她努力工作以实现自己的目标。',
       status: 'mastered',
@@ -67,8 +80,11 @@ const VocabPage = () => {
     {
       id: '4',
       word: 'sophisticated',
-      pronunciation: '/səˈfɪstɪkeɪtɪd/',
-      definition: '复杂的，精密的，老练的',
+      phonetic: '/səˈfɪstɪkeɪtɪd/',
+      definition: JSON.stringify([{
+        part_of_speech: 'adjective',
+        meanings: ['复杂的，精密的', '老练的，世故的', '高级的，先进的']
+      }]),
       example_sentence: 'The software uses sophisticated algorithms.',
       translation: '这个软件使用复杂的算法。',
       status: 'learning',
@@ -78,23 +94,58 @@ const VocabPage = () => {
     {
       id: '5',
       word: 'implement',
-      pronunciation: '/ˈɪmplɪment/',
-      definition: '实施，执行，实现',
+      phonetic: '/ˈɪmplɪment/',
+      definition: JSON.stringify([{
+        part_of_speech: 'verb',
+        meanings: ['实施，执行，实现', '履行，贯彻']
+      }]),
       example_sentence: 'The company will implement the new strategy next month.',
       translation: '公司将在下个月实施新战略。',
-      status: 'review',
+      status: 'new',
       added_at: '2024-01-11T11:30:00Z',
       grammar_type: 'verb'
     }
   ], []);
 
   useEffect(() => {
-    // 模拟从后端获取生词数据
-    setTimeout(() => {
-      setVocabularyList(mockVocabulary);
-      setFilteredList(mockVocabulary);
-      setLoading(false);
-    }, 500);
+    const fetchVocabulary = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          console.error('No authentication token found');
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch('/api/vocab/', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setVocabularyList(data);
+          setFilteredList(data);
+        } else {
+          console.error('Failed to fetch vocabulary:', response.status);
+          // 如果API调用失败，使用模拟数据作为后备
+          setVocabularyList(mockVocabulary);
+          setFilteredList(mockVocabulary);
+        }
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // 如果发生错误，使用模拟数据作为后备
+        setVocabularyList(mockVocabulary);
+        setFilteredList(mockVocabulary);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVocabulary();
   }, [mockVocabulary]);
 
   useEffect(() => {
@@ -102,10 +153,23 @@ const VocabPage = () => {
     let filtered = vocabularyList;
     
     if (searchTerm) {
-      filtered = filtered.filter(item => 
-        item.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.definition.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(item => {
+        const word = item.word.toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        
+        // 搜索单词本身
+        if (word.includes(searchLower)) {
+          return true;
+        }
+        
+        // 搜索解析后的释义
+        const definitions = parseDefinition(item.definition);
+        return definitions.some(def => 
+          def.meanings.some(meaning => 
+            meaning.toLowerCase().includes(searchLower)
+          )
+        );
+      });
     }
     
     if (statusFilter !== 'all') {
@@ -115,40 +179,121 @@ const VocabPage = () => {
     setFilteredList(filtered);
   }, [searchTerm, statusFilter, vocabularyList]);
 
-  const handleWordClick = (word: VocabularyItem) => {
-    setSelectedWord(word);
-    setShowModal(true);
-  };
+
 
   const handleStatusChange = async (wordId: string, newStatus: VocabularyItem['status']) => {
     try {
-      // 这里应该调用后端API更新状态
-      // await updateVocabularyStatus(wordId, newStatus);
-      
-      setVocabularyList(prev => 
-        prev.map(item => 
-          item.id === wordId ? { ...item, status: newStatus } : item
-        )
-      );
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch(`/api/vocab/${wordId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        // 更新本地状态
+        setVocabularyList(prev => 
+          prev.map(item => 
+            item.id === wordId ? { ...item, status: newStatus } : item
+          )
+        );
+      } else {
+        console.error('Failed to update vocabulary status:', response.status);
+      }
     } catch (error) {
       console.error('Failed to update vocabulary status:', error);
     }
   };
 
+  const handleDeleteWord = async (wordId: string) => {
+    // if (!confirm('确定要删除这个单词吗？')) {
+    //   return;
+    // }
+
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch(`/api/vocab/${wordId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // 从本地状态中移除
+        setVocabularyList(prev => prev.filter(item => item.id !== wordId));
+      //   // 如果当前显示的是被删除的单词，关闭模态框
+      //   if (selectedWord && selectedWord.id === wordId) {
+      //     setShowModal(false);
+      //     setSelectedWord(null);
+      //   }
+      // } else {
+      //   console.error('Failed to delete vocabulary:', response.status);
+      //   alert('删除失败，请重试');
+      }
+    } catch (error) {
+      console.error('Failed to delete vocabulary:', error);
+      alert('删除失败，请重试');
+    }
+  };
+
+  // 解析JSON格式的释义
+  const parseDefinition = (definition: string): WordDefinition[] => {
+    if (!definition) {
+      return [{
+        part_of_speech: 'unknown',
+        meanings: ['No definition available']
+      }];
+    }
+    
+    try {
+      return JSON.parse(definition);
+    } catch (error) {
+      // 如果解析失败，返回原始字符串作为单个释义
+      return [{
+        part_of_speech: 'unknown',
+        meanings: [definition]
+      }];
+    }
+  };
+
+  // 获取简化的释义显示
+  const getSimpleDefinition = (definition: string): string => {
+    const parsed = parseDefinition(definition);
+    if (parsed.length > 0 && parsed[0].meanings && parsed[0].meanings.length > 0) {
+      return parsed[0].meanings[0];
+    }
+    return definition;
+  };
+
   const getStatusColor = (status: VocabularyItem['status']) => {
     switch (status) {
+      case 'new': return 'bg-gray-100 text-gray-800';
       case 'learning': return 'bg-blue-100 text-blue-800';
       case 'mastered': return 'bg-green-100 text-green-800';
-      case 'review': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusLabel = (status: VocabularyItem['status']) => {
     switch (status) {
+      case 'new': return '新单词';
       case 'learning': return '学习中';
       case 'mastered': return '已掌握';
-      case 'review': return '需复习';
       default: return '未知';
     }
   };
@@ -201,8 +346,8 @@ const VocabPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="new">新单词</SelectItem>
                     <SelectItem value="learning">学习中</SelectItem>
-                    <SelectItem value="review">需复习</SelectItem>
                     <SelectItem value="mastered">已掌握</SelectItem>
                   </SelectContent>
                 </Select>
@@ -216,66 +361,111 @@ const VocabPage = () => {
         </Card>
 
         {/* 生词列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {filteredList.map((word) => (
             <Card 
               key={word.id} 
-              className="shadow-lg rounded-xl bg-white/90 backdrop-blur-md hover:shadow-xl transition-all duration-200 cursor-pointer transform hover:scale-105"
-              onClick={() => handleWordClick(word)}
+              className="shadow-md rounded-lg bg-white/90 backdrop-blur-md hover:shadow-lg transition-all duration-200"
             >
               <CardContent className="p-4">
-                <div className="space-y-3">
+                <div className="space-y-2">
+                  {/* 单词标题和状态 */}
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-gray-800">{word.word}</h3>
-                      {word.pronunciation && (
-                        <p className="text-sm text-gray-600">{word.pronunciation}</p>
+                      <h3 className="text-lg font-bold text-indigo-800">{word.word}</h3>
+                      {word.phonetic && (
+                        <p className="text-xs text-gray-600 mt-0.5">{word.phonetic}</p>
                       )}
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(word.status)}`}>
-                      {getStatusLabel(word.status)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getStatusColor(word.status)}`}>
+                        {getStatusLabel(word.status)}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteWord(word.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 px-1.5 py-0.5 h-5 text-xs"
+                      >
+                        删除
+                      </Button>
+                    </div>
                   </div>
                   
-                  <p className="text-gray-700 text-sm">{word.definition}</p>
+                  {/* 详细释义 */}
+                  <div>
+                    <h4 className="font-medium text-gray-800 mb-2 text-xs">释义：</h4>
+                    <div className="space-y-2">
+                      {parseDefinition(word.definition).map((definition: WordDefinition, index: number) => (
+                        <div key={index} className="border-l-3 border-purple-200 pl-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                              {definition.part_of_speech}
+                            </span>
+                          </div>
+                          <ul className="space-y-0.5">
+                            {definition.meanings?.map((meaning: string, meaningIndex: number) => (
+                              <li key={meaningIndex} className="text-gray-700 text-xs">
+                                • {meaning}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   
-                  {word.grammar_type && (
-                    <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                      {word.grammar_type}
-                    </span>
+                  {/* 例句 */}
+                  {word.example_sentence && (
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-1 text-xs">例句：</h4>
+                      <p className="text-gray-700 italic text-xs">&quot;{word.example_sentence}&quot;</p>
+                      {word.translation && (
+                        <p className="text-gray-600 mt-0.5 text-xs">{word.translation}</p>
+                      )}
+                    </div>
                   )}
                   
-                  <div className="flex gap-2 mt-3">
+                  {/* 词性和添加时间 */}
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-2">
+                      {word.grammar_type && (
+                        <div>
+                          <span className="font-medium">词性：</span>
+                          <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                            {word.grammar_type}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      {new Date(word.added_at).toLocaleDateString('zh-CN')}
+                    </div>
+                  </div>
+                  
+                  {/* 状态按钮 */}
+                  <div className="flex gap-1.5 pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant={word.status === 'new' ? 'default' : 'outline'}
+                      onClick={() => handleStatusChange(word.id, 'new')}
+                      className="text-xs px-2 py-1 h-6"
+                    >
+                      新单词
+                    </Button>
                     <Button
                       size="sm"
                       variant={word.status === 'learning' ? 'default' : 'outline'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStatusChange(word.id, 'learning');
-                      }}
-                      className="text-xs"
+                      onClick={() => handleStatusChange(word.id, 'learning')}
+                      className="text-xs px-2 py-1 h-6"
                     >
                       学习中
                     </Button>
                     <Button
                       size="sm"
-                      variant={word.status === 'review' ? 'default' : 'outline'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStatusChange(word.id, 'review');
-                      }}
-                      className="text-xs"
-                    >
-                      需复习
-                    </Button>
-                    <Button
-                      size="sm"
                       variant={word.status === 'mastered' ? 'default' : 'outline'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStatusChange(word.id, 'mastered');
-                      }}
-                      className="text-xs"
+                      onClick={() => handleStatusChange(word.id, 'mastered')}
+                      className="text-xs px-2 py-1 h-6"
                     >
                       已掌握
                     </Button>
@@ -295,94 +485,7 @@ const VocabPage = () => {
         )}
       </div>
 
-      {/* 详细信息模态框 */}
-      {showModal && selectedWord && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowModal(false)}>
-          <Card className="w-full max-w-2xl shadow-2xl rounded-2xl bg-white" onClick={(e) => e.stopPropagation()}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-2xl font-bold text-gray-800">{selectedWord.word}</CardTitle>
-                  {selectedWord.pronunciation && (
-                    <p className="text-lg text-gray-600 mt-1">{selectedWord.pronunciation}</p>
-                  )}
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
-                  ✕
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-2">释义：</h4>
-                <p className="text-gray-700">{selectedWord.definition}</p>
-              </div>
-              
-              {selectedWord.example_sentence && (
-                <div>
-                  <h4 className="font-semibold text-gray-800 mb-2">例句：</h4>
-                  <p className="text-gray-700 italic">&quot;{selectedWord.example_sentence}&quot;</p>
-                  {selectedWord.translation && (
-                    <p className="text-gray-600 mt-1">{selectedWord.translation}</p>
-                  )}
-                </div>
-              )}
-              
-              <div className="flex items-center gap-4">
-                {selectedWord.grammar_type && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">词性：</span>
-                    <span className="ml-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                      {selectedWord.grammar_type}
-                    </span>
-                  </div>
-                )}
-                
-                <div>
-                  <span className="text-sm font-medium text-gray-700">状态：</span>
-                  <span className={`ml-1 px-2 py-1 rounded text-sm ${getStatusColor(selectedWord.status)}`}>
-                    {getStatusLabel(selectedWord.status)}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="text-sm text-gray-500">
-                添加时间：{new Date(selectedWord.added_at).toLocaleDateString('zh-CN')}
-              </div>
-              
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant={selectedWord.status === 'learning' ? 'default' : 'outline'}
-                  onClick={() => {
-                    handleStatusChange(selectedWord.id, 'learning');
-                    setSelectedWord({...selectedWord, status: 'learning'});
-                  }}
-                >
-                  标记为学习中
-                </Button>
-                <Button
-                  variant={selectedWord.status === 'review' ? 'default' : 'outline'}
-                  onClick={() => {
-                    handleStatusChange(selectedWord.id, 'review');
-                    setSelectedWord({...selectedWord, status: 'review'});
-                  }}
-                >
-                  标记为需复习
-                </Button>
-                <Button
-                  variant={selectedWord.status === 'mastered' ? 'default' : 'outline'}
-                  onClick={() => {
-                    handleStatusChange(selectedWord.id, 'mastered');
-                    setSelectedWord({...selectedWord, status: 'mastered'});
-                  }}
-                >
-                  标记为已掌握
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+
     </div>
   );
 };

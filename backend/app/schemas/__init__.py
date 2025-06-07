@@ -7,12 +7,12 @@ from .user_schema import UserBase, UserCreate, UserUpdate, UserRead, UserInDB, U
 from .sentence_schema import SentenceBase, SentenceCreate, SentenceUpdate, SentenceRead, DifficultyLevel
 from .question_schema import QuestionBase, QuestionCreate, QuestionUpdate, QuestionRead, QuestionType
 from .user_answer_schema import UserAnswerBase, UserAnswerCreate, UserAnswerRead
-from .user_vocab_schema import UserVocabBase, UserVocabCreate, UserVocabUpdate, UserVocabRead, VocabStatus, WordExplanation
+from .user_vocab_schema import UserVocabBase, UserVocabCreate, UserVocabUpdate, UserVocabRead, VocabStatus, WordExplanation, WordExplanationRequest
 
 __all__ = [
     "UserBase", "UserCreate", "UserUpdate", "UserRead", "UserInDB", "UserPlan", "Token", "TokenData",
     "SentenceBase", "SentenceCreate", "SentenceUpdate", "SentenceRead", "DifficultyLevel",
     "QuestionBase", "QuestionCreate", "QuestionUpdate", "QuestionRead", "QuestionType",
     "UserAnswerBase", "UserAnswerCreate", "UserAnswerRead",
-    "UserVocabBase", "UserVocabCreate", "UserVocabUpdate", "UserVocabRead", "VocabStatus", "WordExplanation",
+    "UserVocabBase", "UserVocabCreate", "UserVocabUpdate", "UserVocabRead", "VocabStatus", "WordExplanation", "WordExplanationRequest",
 ]

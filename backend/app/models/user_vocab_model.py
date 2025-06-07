@@ -18,6 +18,8 @@ class UserVocab(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     word = Column(Text, nullable=False, comment="生词")
+    phonetic = Column(Text, nullable=True, comment="音标")
+    definition = Column(Text, nullable=True, comment="释义（JSON格式存储）")
     sentence_id = Column(Integer, ForeignKey('sentences.id'), nullable=True, comment="来自哪个句子（可追踪）")
     status = Column(SQLAlchemyEnum(VocabStatus), default=VocabStatus.NEW, nullable=False)
     added_at = Column(DateTime(timezone=True), server_default=func.now(), comment="添加时间")

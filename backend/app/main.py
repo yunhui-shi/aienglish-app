@@ -38,7 +38,7 @@ async def shutdown_event():
 origins = [
     "http://localhost:3000",  # Next.js frontend development server
     "http://127.0.0.1:3000", # Also for Next.js
-    "https://my-aienglish-frontend-528300933169.asia-southeast2.run.app"
+    "https://www.u2663302.nyat.app:60958"
     # "*", # Removed wildcard when allow_credentials=True, as it's not allowed by browsers
     # Add any other specific origins if needed (e.g., deployed frontend URL)
 ]

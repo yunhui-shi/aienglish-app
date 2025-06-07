@@ -146,11 +146,15 @@ export async function initializeCachePool(token: string): Promise<void> {
   await apiCall<void>('/practice/cache/initialize', { method: 'POST', token });
 }
 
+export interface WordDefinition {
+  part_of_speech: string;
+  meanings: string[];
+}
+
 export interface WordExplanation {
   word: string;
-  explanation: string;
-  pronunciation?: string;
-  example_sentence?: string;
+  phonetic?: string;
+  definitions: WordDefinition[];
 }
 
 export async function getWordExplanation(word: string, token: string | null): Promise<WordExplanation> {

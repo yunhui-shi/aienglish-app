@@ -11,23 +11,11 @@ import { getPracticeQuestion, submitUserAnswer, initializeCachePool, ApiPractice
 interface ClickableWordsProps {
   sentence: string;
   highlightedWord?: string;
-  vocabulary: Array<{
-    word: string;
-    definition: string;
-    pronunciation?: string;
-  }>;
+  vocabulary?: Array<{ word: string; definition: string; pronunciation?: string }>;
+  onWordClick?: (word: string) => void;
 }
 
-const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWord, vocabulary }) => {
-  const [tooltipWord, setTooltipWord] = useState<string | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  
-  // 关闭提示框
-  const closeTooltip = () => {
-    setTooltipWord(null);
-  };
-
+const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWord, vocabulary, onWordClick }) => {
   // 处理单词点击
   const handleWordClick = (e: React.MouseEvent, word: string) => {
     e.preventDefault();
@@ -36,44 +24,13 @@ const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWo
     // 清除标点符号
     const cleanWord = word.replace(/[.,!?;:"'()\[\]{}]/g, '');
     
-    // 设置提示位置
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY
-    });
-    
-    // 设置提示词或关闭
-    if (tooltipWord === cleanWord) {
-      setTooltipWord(null);
-    } else {
-      setTooltipWord(cleanWord);
+    // 调用父组件的回调函数
+    if (onWordClick && cleanWord.trim()) {
+      onWordClick(cleanWord);
     }
   };
 
-  // 获取单词的定义
-  const getWordDefinition = (word: string) => {
-    // 清除标点符号进行匹配
-    const cleanWord = word.replace(/[.,!?;:"'()\[\]{}]/g, '');
-    const vocabItem = vocabulary?.find(item => 
-      item.word.toLowerCase() === cleanWord.toLowerCase()
-    );
-    return vocabItem?.definition || '暂无解释';
-  };
 
-  // 点击文档其他地方关闭提示
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
-        closeTooltip();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   // 将句子拆分为单词和下划线
   const parts = sentence.split(/(\s+|__{4,})/g).filter(part => part !== '');
@@ -103,29 +60,6 @@ const ClickableWords: React.FC<ClickableWordsProps> = ({ sentence, highlightedWo
           </span>
         );
       })}
-      
-      {/* 单词解释提示框 */}
-      {tooltipWord && (
-        <div 
-          ref={tooltipRef}
-          className="absolute z-50 bg-white shadow-lg rounded-lg p-3 border border-gray-200 max-w-xs"
-          style={{
-            left: `${tooltipPosition.x}px`,
-            top: `${tooltipPosition.y + 10}px`
-          }}
-        >
-          <div className="flex justify-between items-center mb-1">
-            <h3 className="font-bold text-indigo-700">{tooltipWord}</h3>
-            <button 
-              onClick={closeTooltip}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-sm text-gray-700">{getWordDefinition(tooltipWord)}</p>
-        </div>
-      )}
     </div>
   );
 };
@@ -198,6 +132,10 @@ const PracticePage = () => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0); // 0: 词语选择, 1: 翻译选择, 2: 解析
   const [loading, setLoading] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false); // 主题/难度切换加载状态
+  const [selectedWordExplanation, setSelectedWordExplanation] = useState<any>(null);
+  const [wordExplanationLoading, setWordExplanationLoading] = useState(false);
+  const [showVocabPanel, setShowVocabPanel] = useState(false);
+  const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
 
 
@@ -306,6 +244,95 @@ const PracticePage = () => {
     fetchNewQuestion();
   };
 
+  // 处理单词点击，获取词汇释义
+  const handleWordClick = async (word: string) => {
+    setWordExplanationLoading(true);
+    setShowVocabPanel(true);
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`/api/vocab/word/explanation`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          word: word,
+          sentence: currentQuestion?.sentence || ''
+        })
+      });
+      
+      if (response.ok) {
+        const explanation = await response.json();
+        setSelectedWordExplanation(explanation);
+      } else {
+        console.error('Failed to fetch word explanation');
+        setSelectedWordExplanation({
+          word: word,
+          phonetic: null,
+          definitions: [{
+            part_of_speech: 'unknown',
+            meanings: ['获取释义失败，请重试']
+          }]
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching word explanation:', error);
+      setSelectedWordExplanation({
+        word: word,
+        phonetic: null,
+        definitions: [{
+          part_of_speech: 'unknown',
+          meanings: ['网络错误，请重试']
+        }]
+      });
+    } finally {
+      setWordExplanationLoading(false);
+    }
+  };
+
+  // 添加到生词库
+  const addToVocabulary = async (word: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      // 获取单词的完整信息
+      const explanation = selectedWordExplanation;
+      if (!explanation) {
+        console.error('No word explanation available');
+        return;
+      }
+
+      // 将释义转换为JSON字符串
+      const definitionJson = JSON.stringify(explanation.definitions);
+      
+      const response = await fetch('/api/vocab', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          word: word,
+          phonetic: explanation.phonetic,
+          definition: definitionJson,
+          sentence_id: currentQuestion?.id || null,
+          status: 'learning'
+        })
+      });
+      
+      if (response.ok) {
+        // 更新已添加单词列表
+        setAddedWords(prev => new Set([...prev, word]));
+      } else {
+        console.error('Failed to add to vocabulary');
+      }
+    } catch (error) {
+      console.error('Error adding to vocabulary:', error);
+    }
+  };
+
   const handleCardNavigation = (index: number) => {
     // 检查索引范围
     if (index < 0 || index > 2) return;
@@ -344,7 +371,10 @@ const PracticePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex gap-6">
+          {/* 左侧主要内容区域 */}
+          <div className={`space-y-6 transition-all duration-300 ${showVocabPanel ? 'w-2/3' : 'w-full max-w-4xl mx-auto'}`}>
         {/* 页面顶部 - 主题和难度选择 */}
         <Card className="shadow-lg rounded-2xl bg-white/90 backdrop-blur-md">
           <CardHeader>
@@ -429,11 +459,13 @@ const PracticePage = () => {
                         )}
                         highlightedWord={currentQuestion.word_choice.correct_answer}
                         vocabulary={currentQuestion.vocabulary}
+                        onWordClick={handleWordClick}
                       />
                     ) : (
                       <ClickableWords 
                         sentence={currentQuestion.sentence}
                         vocabulary={currentQuestion.vocabulary}
+                        onWordClick={handleWordClick}
                       />
                     )}
                   </div>
@@ -620,6 +652,92 @@ const PracticePage = () => {
             )}
           </>
         )}
+        </div>
+        
+        {/* 右侧词汇释义面板 */}
+        {showVocabPanel && (
+          <div className="w-1/3 space-y-4">
+            <Card className="shadow-lg rounded-2xl bg-white/90 backdrop-blur-md sticky top-4">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-semibold text-gray-800">
+                    词汇释义
+                  </CardTitle>
+                  <button
+                    onClick={() => setShowVocabPanel(false)}
+                    className="text-gray-400 hover:text-gray-600 text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {wordExplanationLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">正在获取释义...</p>
+                  </div>
+                ) : selectedWordExplanation ? (
+                  <div className="space-y-4">
+                    {/* 单词标题 */}
+                    <div className="border-b pb-3">
+                      <h3 className="text-xl font-bold text-indigo-700">
+                        {selectedWordExplanation.word}
+                      </h3>
+                      {selectedWordExplanation.phonetic && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {selectedWordExplanation.phonetic}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* 词汇定义 */}
+                    <div className="space-y-3">
+                      {selectedWordExplanation.definitions?.map((definition: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                          <div className="font-medium text-indigo-600 mb-2">
+                            {definition.part_of_speech}
+                          </div>
+                          <ul className="space-y-1">
+                            {definition.meanings?.map((meaning: string, meaningIndex: number) => (
+                              <li key={meaningIndex} className="text-gray-700 text-sm">
+                                • {meaning}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* 添加到生词库按钮 */}
+                    <div className="pt-4 border-t">
+                      {addedWords.has(selectedWordExplanation.word) ? (
+                        <Button
+                          disabled
+                          className="w-full bg-gray-400 text-white font-medium rounded-lg cursor-not-allowed"
+                        >
+                          已添加
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => addToVocabulary(selectedWordExplanation.word)}
+                          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium rounded-lg"
+                        >
+                          添加到生词库
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    点击句子中的单词查看释义
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );

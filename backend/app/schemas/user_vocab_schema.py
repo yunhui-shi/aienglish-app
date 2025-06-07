@@ -13,7 +13,10 @@ class VocabStatus(str, Enum):
 # Base UserVocab schema
 class UserVocabBase(BaseModel):
     word: str = Field(..., example="insist")
+    phonetic: Optional[str] = Field(None, example="/ɪnˈsɪst/", description="音标")
+    definition: Optional[str] = Field(None, description="释义（JSON格式）")
     sentence_id: Optional[int] = Field(None, example=1, description="ID of the sentence where the word was encountered")
+    status: Optional[VocabStatus] = Field(None, example=VocabStatus.LEARNING, description="学习状态")
     # user_id will be taken from authenticated user
 
 # Schema for adding a new word to vocab
@@ -38,12 +41,21 @@ class UserVocabRead(UserVocabBase):
         orm_mode = True # Pydantic V1
         # from_attributes = True # Pydantic V2
 
+# Schema for word definitions
+class WordDefinition(BaseModel):
+    part_of_speech: str = Field(..., example="v.", description="词性")
+    meanings: List[str] = Field(..., example=["跑，奔跑", "操作，运行", "管理"], description="词义列表")
+
+# Schema for word explanation request
+class WordExplanationRequest(BaseModel):
+    word: str = Field(..., example="run", description="要查询的单词")
+    sentence: Optional[str] = Field(None, example="I like to run in the morning.", description="单词所在的句子上下文")
+
 # Schema for word explanations
 class WordExplanation(BaseModel):
-    word: str = Field(..., example="insist")
-    explanation: str = Field(..., example="to state firmly that something is true")
-    pronunciation: Optional[str] = Field(None, example="/ɪnˈsɪst/")
-    example_sentence: Optional[str] = Field(None, example="She insisted that she was right.")
+    word: str = Field(..., example="run")
+    phonetic: Optional[str] = Field(None, example="/rʌn/", description="音标")
+    definitions: List[WordDefinition] = Field(..., description="词义定义列表")
     
     class Config:
         orm_mode = True # Pydantic V1
